@@ -1,2 +1,5 @@
 # picoUSB
-pico usb usage
+pico usb usage in each branch
+
+## dual usb
+Dual usbs transmit data each other.
