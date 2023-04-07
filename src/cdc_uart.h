@@ -27,7 +27,4 @@
 #define CDC_UART_H
 #include "pico/stdlib.h"
 
-extern volatile uint8_t firstLineRecFlag;
-extern volatile uint8_t secondLineRecFlag;
-
 #endif

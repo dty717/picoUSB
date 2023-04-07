@@ -57,15 +57,22 @@ void core1_entry()
 {
     while (true)
     {
-        if(secondLineRecFlag){
-            secondLineRecFlag = 0;
-            num_read1 = tud_cdc_n_read(1, data1, len1);
-            if (num_read1)
+        if (tud_cdc_n_available(secondLine))
+        {
+            #ifdef checkUsbConnecting
+                if (tud_cdc_n_connected(secondLine))
+            #endif
             {
-                if (tud_cdc_n_connected(0))
+                num_read1 = tud_cdc_n_read(secondLine, data1, len1);
+                if (num_read1)
                 {
-                    tud_cdc_n_write(0, data1, num_read1);
-                    tud_cdc_n_write_flush(0);
+                    #ifdef checkUsbConnecting
+                        if (tud_cdc_n_connected(firstLine))
+                    #endif
+                    {
+                        tud_cdc_n_write(firstLine, data1, num_read1);
+                        tud_cdc_n_write_flush(firstLine);
+                    }
                 }
             }
         }
@@ -88,16 +95,22 @@ int main(void) {
     #endif
     while (1) 
     {
-        if (firstLineRecFlag)
+        if (tud_cdc_n_available(firstLine))
         {
-            firstLineRecFlag = 0;
-            num_read0 = tud_cdc_n_read(0, data0, len0);
-            if (num_read0)
-            {
-                if (tud_cdc_n_connected(1))
+            #ifdef checkUsbConnecting
+                if (tud_cdc_n_connected(secondLine))
+            #endif
                 {
-                    tud_cdc_n_write(1, data0, num_read0);
-                    tud_cdc_n_write_flush(1);
+                num_read0 = tud_cdc_n_read(firstLine, data0, len0);
+                if (num_read0)
+                {
+                    #ifdef checkUsbConnecting
+                        if (tud_cdc_n_connected(secondLine))
+                    #endif
+                    {
+                        tud_cdc_n_write(secondLine, data0, num_read0);
+                        tud_cdc_n_write_flush(secondLine);
+                    }
                 }
             }
         }

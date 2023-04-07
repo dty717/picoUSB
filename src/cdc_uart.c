@@ -24,13 +24,11 @@
  */
 
 #include "pico/stdlib.h"
+#include "pico/bootrom.h"
 
 #include "tusb.h"
 
 #include "picoprobe_config.h"
-
-volatile uint8_t firstLineRecFlag = 0;
-volatile uint8_t secondLineRecFlag = 0;
 
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const *line_coding)
 {
@@ -54,25 +52,18 @@ void tud_resume_cb(void) {
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
     // printf("tud_cdc_line_state_cb itf:%d,dtr:%d,rts:%d\r\n", itf, dtr, rts);
     (void)itf;  // interface ID, not used
+
+    // DTR = false is counted as disconnected
+    if (!dtr) {
+        cdc_line_coding_t coding;
+        // Use whichever CDC is itf 0.
+        tud_cdc_get_line_coding(&coding);
+    }
 }
 
 void tud_cdc_rx_cb(uint8_t itf) {
     (void)itf;
     // Workaround for "press any key to enter REPL" response being delayed on espressif.
     // Wake main task when any key is pressed.
-    switch (itf)
-    {
-        case firstLine:
-            firstLineRecFlag = 1;
-            /* code */
-            break;
-        case secondLine:
-            secondLineRecFlag = 1;
-            /* code */
-            break;
-        default:
-            printf("tud_cdc_rx_cb:%d\r\n",itf);
-            break;
-    }
     // port_wake_main_task();
 }

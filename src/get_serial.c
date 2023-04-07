@@ -66,10 +66,6 @@ void usb_background_schedule(void)
 void usb_irq_handler(int instance)
 {
     // printf("usb_irq_handler %d\r\n",instance);
-    if (instance == 0)
-    {
-        tud_int_handler(instance);
-    }
     tud_int_handler(instance);
     usb_background_schedule();
 }

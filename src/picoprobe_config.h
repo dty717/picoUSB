@@ -59,6 +59,9 @@ extern uint8_t data1[len1];
 
 #define Listener
 
+// This is an idiosyncrasy of the C# API fixing for that C# code does not set SerialPort.DtrEnable(DTR:Data Terminal Ready), with .connected not be true
+// #define checkUsbConnecting
+
 #define firstLine 0
 #define secondLine 1
 
