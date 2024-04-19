@@ -25,7 +25,8 @@
 
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
-
+#include "hardware/uart.h"
+#include "hardware/irq.h"
 #include "tusb.h"
 
 #include "picoprobe_config.h"
@@ -39,12 +40,12 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const *line_coding)
 // remote_wakeup_en : if host allows us to perform remote wakeup
 // USB Specs: Within 7ms, device must draw an average current less than 2.5 mA from bus
 void tud_suspend_cb(bool remote_wakeup_en) {
-    printf("tud_suspend_cb remote_wakeup_en%d\r\n", remote_wakeup_en);
+    // printf("tud_suspend_cb remote_wakeup_en%d\r\n", remote_wakeup_en);
 }
 
 // Invoked when usb bus is resumed
 void tud_resume_cb(void) {
-    printf("tud_resume_cb");
+    // printf("tud_resume_cb");
 }
 
 // Invoked when cdc when line state changed e.g connected/disconnected

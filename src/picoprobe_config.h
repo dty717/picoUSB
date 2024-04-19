@@ -54,11 +54,25 @@ extern uint8_t data0[len0];
 extern uint16_t num_read1;
 extern uint8_t data1[len1];
 
-// Target reset config
-#define PROBE_PIN_RESET 6
-
 #define Listener
 
+// #define UsingUART
+
+#ifdef UsingUART
+    #define USE_485
+    #ifdef USE_485
+        #define UART0_EN_PIN                    2
+        #define UART0_TX_PIN                    0
+        #define UART0_RX_PIN                    1
+        #define UART1_EN_PIN                    3
+        #define UART1_TX_PIN                    4
+        #define UART1_RX_PIN                    5
+        #define BAUD_RATE                  115200
+        #define DATA_BITS                       8
+        #define STOP_BITS                       1
+        #define PARITY           UART_PARITY_NONE
+    #endif
+#endif
 // This is an idiosyncrasy of the C# API fixing for that C# code does not set SerialPort.DtrEnable(DTR:Data Terminal Ready), with .connected not be true
 // #define checkUsbConnecting
 
@@ -67,6 +81,7 @@ extern uint8_t data1[len1];
 
 // LED config
 #ifndef PICOPROBE_LED
+
 
 #ifndef PICO_DEFAULT_LED_PIN
 #error PICO_DEFAULT_LED_PIN is not defined, run PICOPROBE_LED=<led_pin> cmake
