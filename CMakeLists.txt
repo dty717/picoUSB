@@ -24,10 +24,10 @@ set(DBG_PIN_COUNT=4)
 
 target_include_directories(pico_usb PRIVATE src)
 
-target_link_libraries(pico_usb PRIVATE pico_stdlib pico_unique_id pico_multicore tinyusb_device tinyusb_board hardware_pio)
+target_link_libraries(pico_usb PRIVATE pico_stdlib pico_unique_id pico_multicore hardware_gpio hardware_irq hardware_pio tinyusb_device tinyusb_board)
 
 # enable usb output, disable uart output
-pico_enable_stdio_usb(pico_usb 1)
+pico_enable_stdio_usb(pico_usb 0)
 pico_enable_stdio_uart(pico_usb 0)
 
 pico_add_extra_outputs(pico_usb)

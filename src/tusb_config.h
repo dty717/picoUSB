@@ -69,9 +69,6 @@
 #define CFG_TUD_VENDOR          1
 #define CFG_TUD_CUSTOM_CLASS    0
 
-#define CFG_TUSB_ATTR_USBRAM        __attribute__((section(".bss.usbram")))
-
-
 #define CFG_TUD_CDC_RX_BUFSIZE 64
 #define CFG_TUD_CDC_TX_BUFSIZE 64
 

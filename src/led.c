@@ -41,14 +41,25 @@ void led_init(void) {
     gpio_put(PICOPROBE_LED, 1);
 }
 
+uint32_t start_time;
+uint8_t led_state = 0;
+const uint32_t interval_microsecond = 1000000;
 
-
-void led_task(void) {
-    if (led_count != 0) {
-        --led_count;
-        gpio_put(PICOPROBE_LED, !((led_count >> LED_COUNT_SHIFT) & 1));
-    }
+void led_task(void)
+{
+    if (time_us_32() - start_time < interval_microsecond)
+        return;
+    start_time += interval_microsecond;
+    gpio_put(PICOPROBE_LED, led_state);
+    led_state = !led_state;
 }
+
+// void led_task(void) {
+//     if (led_count != 0) {
+//         --led_count;
+//         gpio_put(PICOPROBE_LED, !((led_count >> LED_COUNT_SHIFT) & 1));
+//     }
+// }
 
 void led_signal_activity(uint total_bits) {
     if (led_count == 0) {

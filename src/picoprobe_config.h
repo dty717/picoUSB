@@ -56,22 +56,44 @@ extern uint8_t data1[len1];
 
 #define Listener
 
-// #define UsingUART
+#define UsingLED
+
+#ifdef UsingLED
+    #define LED1_PIN 11
+    #define LED2_PIN 12
+    #define LED3_PIN 13
+    #define LED4_PIN 14
+#endif
+
+#define UsingKey
+
+#ifdef UsingKey
+    #define KEY1_PIN 6     //USB0 to USB1
+    #define KEY2_PIN 7     //USB0 to UART0
+    #define KEY3_PIN 8     //USB1 to UART1
+    #define KEY4_PIN 9     //UART0 to UART1
+    // extern int key1;
+    // extern int key2;
+    // extern int key3;
+    // extern int key4;
+#endif
+
+#define UsingUART
 
 #ifdef UsingUART
-    #define USE_485
+    // #define USE_485
     #ifdef USE_485
         #define UART0_EN_PIN                    2
-        #define UART0_TX_PIN                    0
-        #define UART0_RX_PIN                    1
         #define UART1_EN_PIN                    3
-        #define UART1_TX_PIN                    4
-        #define UART1_RX_PIN                    5
-        #define BAUD_RATE                  115200
-        #define DATA_BITS                       8
-        #define STOP_BITS                       1
-        #define PARITY           UART_PARITY_NONE
     #endif
+    #define UART0_TX_PIN                    0
+    #define UART0_RX_PIN                    1
+    #define UART1_TX_PIN                    4
+    #define UART1_RX_PIN                    5
+    #define BAUD_RATE                  115200
+    #define DATA_BITS                       8
+    #define STOP_BITS                       1
+    #define PARITY           UART_PARITY_NONE
 #endif
 // This is an idiosyncrasy of the C# API fixing for that C# code does not set SerialPort.DtrEnable(DTR:Data Terminal Ready), with .connected not be true
 // #define checkUsbConnecting

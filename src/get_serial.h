@@ -35,7 +35,6 @@ extern void usb_serial_init(void);
 extern uint8_t const desc_configuration[];
 extern uint8_t const desc_configuration_test[];
 extern tusb_desc_device_t desc_device_test;
-void testFun();
 void post_usb_init(void);
 void init_usb_hardware(void);
 

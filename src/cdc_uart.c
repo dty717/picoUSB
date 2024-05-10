@@ -33,6 +33,15 @@
 
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const *line_coding)
 {
+    // picoprobe_info("New baud rate %d\n", line_coding->bit_rate);
+    if (itf == firstLine)
+    {
+        uart_set_baudrate(uart0, line_coding->bit_rate);
+    }
+    else if (itf == secondLine)
+    {
+        uart_set_baudrate(uart1, line_coding->bit_rate);
+    }
     // printf("New baud rate %d\n", line_coding->bit_rate);
 }
 

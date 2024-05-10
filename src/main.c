@@ -36,6 +36,7 @@
 #include "led.h"
 #include "hardware/uart.h"
 #include "hardware/irq.h"
+#include "hardware/gpio.h"
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 
@@ -55,37 +56,161 @@ void print_buf(const uint8_t *buf, size_t len) {
     }
 }
 
-#ifdef USE_485
-    uint haswritten0 = 0;
-    uint haswritten1 = 0;
-    volatile uint32_t bit_rate = BAUD_RATE;
+#ifdef UsingKey
+    int key1, key2, key3, key4;
+    void gpio_callback(uint gpio, uint32_t events)
+    {
+        if (gpio == KEY1_PIN)
+        {
+            key1 = !gpio_get(gpio);
+            #ifdef UsingLED
+                gpio_put(LED1_PIN, key1);
+            #endif            
+            // if(events&0b100){
+            //     key1 = 0;
+            //     #ifdef UsingLED
+            //         gpio_put(LED1_PIN, key1);
+            //     #endif
+            // }else if(events&0b1000){
+            //     key1 = 1;
+            //     #ifdef UsingLED
+            //         gpio_put(LED1_PIN, key1);
+            //     #endif
+            // }
+        }
+        if (gpio == KEY2_PIN)
+        {
+            key2 = !gpio_get(gpio);
+            #ifdef UsingLED
+                gpio_put(LED2_PIN, key2);
+            #endif  
+            // if(events&0b100){
+            //     key2 = 0;
+            //     #ifdef UsingLED
+            //         gpio_put(LED2_PIN, key2);
+            //     #endif
+            // }else if(events&0b1000){
+            //     key2 = 1;
+            //     #ifdef UsingLED
+            //         gpio_put(LED2_PIN, key2);
+            //     #endif
+            // }
+        }
+        if (gpio == KEY3_PIN)
+        {
+            key3 = !gpio_get(gpio);
+            #ifdef UsingLED
+                gpio_put(LED3_PIN, key3);
+            #endif
+            // if(events&0b100){
+            //     key3 = 0;
+            //     #ifdef UsingLED
+            //         gpio_put(LED3_PIN, key3);
+            //     #endif
+            // }else if(events&0b1000){
+            //     key3 = 1;
+            //     #ifdef UsingLED
+            //         gpio_put(LED3_PIN, key3);
+            //     #endif
+            // }
+        }
+        if (gpio == KEY4_PIN)
+        {
+            key4 = !gpio_get(gpio);
+            #ifdef UsingLED
+                gpio_put(LED4_PIN, key4);
+            #endif
+            // if(events&0b100){
+            //     key4 = 0;
+            //     #ifdef UsingLED
+            //         gpio_put(LED4_PIN, key4);
+            //     #endif
+            // }else if(events&0b1000){
+            //     key4 = 1;
+            //     #ifdef UsingLED
+            //         gpio_put(LED4_PIN, key4);
+            //     #endif
+            // }
+        }
+    }
 #endif
 
-
 #ifdef UsingUART
+    #ifdef USE_485
+        uint haswritten0 = 0;
+        uint haswritten1 = 0;
+        volatile uint32_t bit_rate = BAUD_RATE;
+    #endif
+    
     // uart0 RX interrupt handler
     void on_uart0_rx()
     {
         while (uart_is_readable(uart0))
         {
             uint8_t ch = uart_getc(uart0);
-            tud_cdc_n_write(secondLine, &ch, 1);
+            #ifdef UsingKey
+                if(key2){
+                    tud_cdc_n_write(firstLine, &ch, 1);
+                }
+                if(key4){
+                    #ifdef USE_485
+                        haswritten1 = 1;
+                        gpio_put(UART1_EN_PIN, 1);
+                        sleep_us(50);
+                    #endif
+                    uart_putc(uart1,ch);
+                    #ifdef USE_485
+                        sleep_us(10304 * 1000 * 2 / bit_rate);
+                        gpio_put(UART1_EN_PIN, 0);
+                    #endif
+                }
+            #else
+                tud_cdc_n_write(firstLine, &ch, 1);
+            #endif
         }
-        tud_cdc_n_write_flush(secondLine);
+        #ifdef UsingKey
+            if(key2){
+                tud_cdc_n_write_flush(firstLine);
+            }
+        #else
+            tud_cdc_n_write_flush(firstLine);
+        #endif
     }
+
     // uart1 RX interrupt handler
     void on_uart1_rx() {
         while (uart_is_readable(uart1))
         {
             uint8_t ch = uart_getc(uart1);
-            tud_cdc_n_write(firstLine, &ch, 1);
+            #ifdef UsingKey
+                if(key3){
+                    tud_cdc_n_write(secondLine, &ch, 1);
+                }
+                if(key4){
+                    #ifdef USE_485
+                        haswritten0 = 1;
+                        gpio_put(UART0_EN_PIN, 1);
+                        sleep_us(50);
+                    #endif
+                    uart_putc(uart0,ch);
+                    #ifdef USE_485
+                        sleep_us(10304 * 1000 * 2 / bit_rate);
+                        gpio_put(UART0_EN_PIN, 0);
+                    #endif
+                }
+            #else
+                tud_cdc_n_write(secondLine, &ch, 1);
+            #endif
         }
-        tud_cdc_n_write_flush(firstLine);
-    } 
+        #ifdef UsingKey
+            if(key3){
+                tud_cdc_n_write_flush(secondLine);
+            }
+        #else
+            tud_cdc_n_write_flush(secondLine);
+        #endif
+    }
 #endif
-
-
-
 
 void core1_entry()
 {
@@ -101,25 +226,51 @@ void core1_entry()
 
                 if (num_read1)
                 {
-                    #ifdef UsingUART
-                        #ifdef USE_485
-                            haswritten1 = 1;
-                            gpio_put(UART1_EN_PIN, 1);
-                            sleep_us(50);
-                        #endif
-                            uart_write_blocking(uart1, data1, num_read1);
-                        #ifdef USE_485
-                            sleep_us(10304 * 1000 * (num_read1 < 33 ? num_read1 + 1 : 33) / bit_rate);
-                            gpio_put(UART1_EN_PIN, 0);
-                        #endif
-                    #else
-                        #ifdef checkUsbConnecting
-                            if (tud_cdc_n_connected(secondLine))
-                        #endif
-                        {
-                            tud_cdc_n_write(secondLine, data0, num_read0);
-                            tud_cdc_n_write_flush(secondLine);
+                    #ifdef UsingKey
+                        if(key1){
+                            #ifdef checkUsbConnecting
+                                if (tud_cdc_n_connected(firstLine))
+                            #endif
+                            {
+                                tud_cdc_n_write(firstLine, data1, num_read1);
+                                tud_cdc_n_write_flush(firstLine);
+                            }
                         }
+                        if(key3){
+                            #ifdef USE_485
+                                haswritten1 = 1;
+                                gpio_put(UART1_EN_PIN, 1);
+                                sleep_us(50);
+                            #endif
+                                uart_write_blocking(uart1, data1, num_read1);
+                                // uart_write_blocking(uart0, data1, num_read1);
+                            #ifdef USE_485
+                                sleep_us(10304 * 1000 * (num_read1 < 33 ? num_read1 + 1 : 33) / bit_rate);
+                                gpio_put(UART1_EN_PIN, 0);
+                            #endif
+                        }
+                    #else
+                        #ifdef UsingUART
+                            #ifdef USE_485
+                                haswritten1 = 1;
+                                gpio_put(UART1_EN_PIN, 1);
+                                sleep_us(50);
+                            #endif
+                                uart_write_blocking(uart1, data1, num_read1);
+                                // uart_write_blocking(uart0, data1, num_read1);
+                            #ifdef USE_485
+                                sleep_us(10304 * 1000 * (num_read1 < 33 ? num_read1 + 1 : 33) / bit_rate);
+                                gpio_put(UART1_EN_PIN, 0);
+                            #endif
+                        #else
+                            #ifdef checkUsbConnecting
+                                if (tud_cdc_n_connected(firstLine))
+                            #endif
+                            {
+                                tud_cdc_n_write(firstLine, data1, num_read1);
+                                tud_cdc_n_write_flush(firstLine);
+                            }
+                        #endif
                     #endif
                 }
             }
@@ -127,9 +278,7 @@ void core1_entry()
     }
 }
 
-
 int main(void) {
-    testFun();
     stdio_init_all();
     board_init();
     usb_serial_init();
@@ -137,6 +286,58 @@ int main(void) {
     tusb_init();
     post_usb_init();
     led_init();
+
+    #ifdef UsingLED
+        const uint LED1 = LED1_PIN;
+        const uint LED2 = LED2_PIN;
+        const uint LED3 = LED3_PIN;
+        const uint LED4 = LED4_PIN;
+        gpio_init(LED1);
+        gpio_init(LED2);
+        gpio_init(LED3);
+        gpio_init(LED4);
+        gpio_set_dir(LED1, GPIO_OUT);
+        gpio_set_dir(LED2, GPIO_OUT);
+        gpio_set_dir(LED3, GPIO_OUT);
+        gpio_set_dir(LED4, GPIO_OUT);
+    #endif
+
+    #ifdef UsingKey
+        const uint key1Pin = KEY1_PIN;
+        const uint key2Pin = KEY2_PIN;
+        const uint key3Pin = KEY3_PIN;
+        const uint key4Pin = KEY4_PIN;
+        
+        gpio_init(key1Pin);
+        gpio_init(key2Pin);
+        gpio_init(key3Pin);
+        gpio_init(key4Pin);
+
+        gpio_set_dir(key1Pin, GPIO_IN);
+        gpio_set_dir(key2Pin, GPIO_IN);
+        gpio_set_dir(key3Pin, GPIO_IN);
+        gpio_set_dir(key4Pin, GPIO_IN);
+        key1 = !gpio_get(KEY1_PIN);
+        key2 = !gpio_get(KEY2_PIN);
+        key3 = !gpio_get(KEY3_PIN);
+        key4 = !gpio_get(KEY4_PIN);
+        #ifdef UsingLED
+            gpio_put(LED1,key1);
+            gpio_put(LED2,key2);
+            gpio_put(LED3,key3);
+            gpio_put(LED4,key4);
+        #endif
+        gpio_set_irq_enabled(key1Pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
+        gpio_set_irq_enabled(key2Pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
+        gpio_set_irq_enabled(key3Pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
+        gpio_set_irq_enabled(key4Pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
+        gpio_set_irq_callback(&gpio_callback);
+        irq_set_enabled(IO_IRQ_BANK0, true);
+        // gpio_set_irq_enabled_with_callback(key1Pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
+        // gpio_set_irq_enabled_with_callback(key2Pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
+        // gpio_set_irq_enabled_with_callback(key3Pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
+        // gpio_set_irq_enabled_with_callback(key4Pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
+    #endif
 
     #ifdef UsingUART
         #ifdef USE_485
@@ -186,7 +387,6 @@ int main(void) {
         uart_set_irq_enables(uart1, true, false);
     #endif
 
-
     picoprobe_info("Welcome to Picoprobe!\n");
     #ifdef Listener
         multicore_launch_core1(core1_entry);
@@ -196,32 +396,57 @@ int main(void) {
         if (tud_cdc_n_available(firstLine))
         {
             #ifdef checkUsbConnecting
-                if (tud_cdc_n_connected(secondLine))
+                if (tud_cdc_n_connected(firstLine))
             #endif
                 {
                 num_read0 = tud_cdc_n_read(firstLine, data0, len0);
-
                 if (num_read0)
                 {
-                    #ifdef UsingUART
-                        #ifdef USE_485
-                            haswritten0 = 1;
-                            gpio_put(UART0_EN_PIN, 1);
-                            sleep_us(50);
-                        #endif
-                            uart_write_blocking(uart0, data0, num_read0);
-                        #ifdef USE_485
-                            sleep_us(10304 * 1000 * (num_read0 < 33 ? num_read0 + 1 : 33) / bit_rate);
-                            gpio_put(UART0_EN_PIN, 0);
-                        #endif
-                    #else
-                        #ifdef checkUsbConnecting
-                            if (tud_cdc_n_connected(secondLine))
-                        #endif
-                        {
-                            tud_cdc_n_write(secondLine, data0, num_read0);
-                            tud_cdc_n_write_flush(secondLine);
+                    #ifdef UsingKey
+                        if(key1){
+                            #ifdef checkUsbConnecting
+                                if (tud_cdc_n_connected(secondLine))
+                            #endif
+                            {
+                                tud_cdc_n_write(secondLine, data0, num_read0);
+                                tud_cdc_n_write_flush(secondLine);
+                            }
                         }
+                        if(key2){
+                            #ifdef USE_485
+                                haswritten0 = 1;
+                                gpio_put(UART0_EN_PIN, 1);
+                                sleep_us(50);
+                            #endif
+                                uart_write_blocking(uart0, data0, num_read0);
+                                // uart_write_blocking(uart1, data0, num_read0);
+                            #ifdef USE_485
+                                sleep_us(10304 * 1000 * (num_read0 < 33 ? num_read0 + 1 : 33) / bit_rate);
+                                gpio_put(UART0_EN_PIN, 0);
+                            #endif
+                        }
+                    #else
+                        #ifdef UsingUART
+                            #ifdef USE_485
+                                haswritten0 = 1;
+                                gpio_put(UART0_EN_PIN, 1);
+                                sleep_us(50);
+                            #endif
+                                uart_write_blocking(uart0, data0, num_read0);
+                                // uart_write_blocking(uart1, data0, num_read0);
+                            #ifdef USE_485
+                                sleep_us(10304 * 1000 * (num_read0 < 33 ? num_read0 + 1 : 33) / bit_rate);
+                                gpio_put(UART0_EN_PIN, 0);
+                            #endif
+                        #else
+                            #ifdef checkUsbConnecting
+                                if (tud_cdc_n_connected(secondLine))
+                            #endif
+                            {
+                                tud_cdc_n_write(secondLine, data0, num_read0);
+                                tud_cdc_n_write_flush(secondLine);
+                            }
+                        #endif
                     #endif
                 }
             }
@@ -232,6 +457,5 @@ int main(void) {
             led_task();
         #endif
     }
-
     return 0;
 }
