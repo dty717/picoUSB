@@ -40,21 +40,6 @@
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 
-uint16_t num_read0 = 0;
-uint8_t data0[len0];
-
-uint16_t num_read1 = 0;
-uint8_t data1[len1];
-
-void print_buf(const uint8_t *buf, size_t len) {
-    for (size_t i = 0; i < len; ++i) {
-        printf("%02X", buf[i]);
-        if (i % 16 == 15)
-            printf("\n");
-        else
-            printf(" ");
-    }
-}
 
 #ifdef UsingKey
     int key1, key2, key3, key4;
@@ -135,6 +120,83 @@ void print_buf(const uint8_t *buf, size_t len) {
     }
 #endif
 
+#ifdef UsingPIO
+    #include "hardware/pio.h"
+    #include "uart_rx.pio.h"
+    #include "uart_tx.pio.h"
+
+    PIO pio_rx;
+    uint8_t sm_rx;
+    int8_t pio_rx_irq;
+    uint offset_rx;
+
+    PIO pio_tx;
+    uint8_t sm_tx;
+    uint offset_tx;
+
+    // IRQ called when the pio_rx fifo is not empty, i.e. there are some characters on the uart
+    // This needs to run as quickly as possible or else you will lose characters (in particular don't printf!)
+    void pio_rx_irq_func(void)
+    {
+        while (!pio_sm_is_rx_fifo_empty(pio_rx, sm_rx))
+        {
+            char ch = uart_rx_program_getc_without_fifo(pio_rx, sm_rx);
+            // putchar(ch); // Display character in the console
+            #ifdef UsingKey
+                if(key2){
+                    tud_cdc_n_write(firstLine, &ch, 1);
+                }
+                if(key4){
+                    #ifdef USE_485
+                        haswritten1 = 1;
+                        gpio_put(UART1_EN_PIN, 1);
+                        sleep_us(50);
+                    #endif
+                    uart_putc(uart1,ch);
+                    #ifdef USE_485
+                        sleep_us(10304 * 1000 * 2 / bit_rate);
+                        gpio_put(UART1_EN_PIN, 0);
+                    #endif
+                }
+            #else
+                tud_cdc_n_write(firstLine, &ch, 1);
+            #endif
+        }
+        #ifdef UsingKey
+            if(key2){
+                tud_cdc_n_write_flush(firstLine);
+            }
+        #else
+            tud_cdc_n_write_flush(firstLine);
+        #endif
+    }
+
+    // Find a free pio_rx and state machine and load the program into it.
+    // Returns false if this fails
+    bool init_pio(const pio_program_t *program, PIO *pio_hw, uint *offset)
+    {
+        // Find a free pio_rx
+        *pio_hw = pio1;
+        if (!pio_can_add_program(*pio_hw, program))
+        {
+            *pio_hw = pio0;
+            if (!pio_can_add_program(*pio_hw, program))
+            {
+                *offset = -1;
+                return false;
+            }
+        }
+        *offset = pio_add_program(*pio_hw, program);
+        return true;
+    }
+#endif
+
+uint16_t num_read0 = 0;
+uint8_t data0[len0];
+
+uint16_t num_read1 = 0;
+uint8_t data1[len1];
+
 #ifdef UsingUART
     #ifdef USE_485
         uint haswritten0 = 0;
@@ -192,7 +254,11 @@ void print_buf(const uint8_t *buf, size_t len) {
                         gpio_put(UART0_EN_PIN, 1);
                         sleep_us(50);
                     #endif
-                    uart_putc(uart0,ch);
+                    #ifdef UsingPIO
+                        uart_tx_program_putc(pio_tx, sm_tx, ch);
+                    #else
+                        uart_putc(uart0,ch);
+                    #endif
                     #ifdef USE_485
                         sleep_us(10304 * 1000 * 2 / bit_rate);
                         gpio_put(UART0_EN_PIN, 0);
@@ -287,6 +353,23 @@ int main(void) {
     post_usb_init();
     led_init();
 
+    #ifdef UsingPIO
+        // Set up the state machine we're going to use to receive them.
+        // In real code you need to find a free pio_rx and state machine in case pio_rx resources are used elsewhere
+        if (!init_pio(&uart_rx_program, &pio_rx, &offset_rx))
+        {
+            panic("failed to setup pio_rx");
+        }
+        if (!init_pio(&uart_tx_program, &pio_tx, &offset_tx))
+        {
+            panic("failed to setup pio_tx");
+        }
+        sm_tx = pio_claim_unused_sm(pio_tx, false);
+        sm_rx = pio_claim_unused_sm(pio_rx, false);
+        // sm_gps_tx = pio_claim_unused_sm(pio_tx, false);
+        // sm_gps_rx = pio_claim_unused_sm(pio_rx, false);
+    #endif
+
     #ifdef UsingLED
         const uint LED1 = LED1_PIN;
         const uint LED2 = LED2_PIN;
@@ -350,40 +433,61 @@ int main(void) {
             gpio_put(uart0_EN, 0);
             gpio_put(uart1_EN, 0);
         #endif
-        uart_init(uart0, BAUD_RATE);
+        #ifdef UsingPIO
+            uart_tx_program_init(pio_tx, sm_tx, offset_tx, PIO_TX_PIN, BAUD_RATE);
+            uart_rx_program_init(pio_rx, sm_rx, offset_rx, PIO_RX_PIN, BAUD_RATE);
+            // uart_tx_program_init(pio_tx, sm_gps_tx, offset_tx, PIO_GPS_TX_PIN, BAUD_RATE);
+            // uart_rx_program_init(pio_rx, sm_gps_rx, offset_rx, PIO_GPS_RX_PIN, BAUD_RATE);
+            // Find a free irq
+            pio_rx_irq = (pio_rx == pio0) ? PIO0_IRQ_0 : PIO1_IRQ_0;
+            // Enable interrupt
+            irq_set_exclusive_handler(pio_rx_irq, pio_rx_irq_func);
+            irq_set_enabled(pio_rx_irq, true); // Enable the IRQ
+            const uint irq_index = pio_rx_irq - ((pio_rx == pio0) ? PIO0_IRQ_0 : PIO1_IRQ_0); // Get index of the IRQ
+            pio_set_irqn_source_enabled(pio_rx, irq_index, pis_sm0_rx_fifo_not_empty + sm_rx, true); // Set pio_rx to tell us when the FIFO is NOT empty
+
+            // // Find a free irq
+            // pio_gps_rx_irq = (pio_rx == pio0) ? PIO0_IRQ_1 : PIO1_IRQ_1;
+            // // Enable interrupt
+            // irq_set_exclusive_handler(pio_gps_rx_irq, pio_gps_rx_irq_func);
+            // irq_set_enabled(pio_gps_rx_irq, true); // Enable the IRQ
+            // const uint gps_irq_index = pio_gps_rx_irq - ((pio_rx == pio0) ? PIO0_IRQ_0 : PIO1_IRQ_0); // Get index of the IRQ
+            // pio_set_irqn_source_enabled(pio_rx, gps_irq_index, pis_sm0_rx_fifo_not_empty + sm_gps_rx, true); // Set pio_rx to tell us when the FIFO is NOT empty
+        #else
+            uart_init(uart0, BAUD_RATE);
+            gpio_set_function(UART0_TX_PIN, GPIO_FUNC_UART);
+            gpio_set_function(UART0_RX_PIN, GPIO_FUNC_UART);
+            uart_set_hw_flow(uart0, false, false);
+            uart_set_format(uart0, DATA_BITS, STOP_BITS, PARITY);
+            uart_set_fifo_enabled(uart0, false);
+            irq_set_exclusive_handler(UART0_IRQ, on_uart0_rx);
+            irq_set_enabled(UART0_IRQ, true);
+            uart_set_irq_enables(uart0, true, false);
+        #endif
         uart_init(uart1, BAUD_RATE);
 
         // Set the TX and RX pins by using the function select on the GPIO
         // Set datasheet for more information on function select
-        gpio_set_function(UART0_TX_PIN, GPIO_FUNC_UART);
-        gpio_set_function(UART0_RX_PIN, GPIO_FUNC_UART);
-
         gpio_set_function(UART1_TX_PIN, GPIO_FUNC_UART);
         gpio_set_function(UART1_RX_PIN, GPIO_FUNC_UART);
 
         // Set UART flow control CTS/RTS, we don't want these, so turn them off
-        uart_set_hw_flow(uart0, false, false);
         uart_set_hw_flow(uart1, false, false);
 
         // Set our data format
-        uart_set_format(uart0, DATA_BITS, STOP_BITS, PARITY);
         uart_set_format(uart1, DATA_BITS, STOP_BITS, PARITY);
 
         // Turn off FIFO's - we want to do this character by character
-        uart_set_fifo_enabled(uart0, false);
         uart_set_fifo_enabled(uart1, false);
 
         // Set up a RX interrupt
         // We need to set up the handler first
         // Select correct interrupt for the UART we are using
         // And set up and enable the interrupt handlers
-        irq_set_exclusive_handler(UART0_IRQ, on_uart0_rx);
         irq_set_exclusive_handler(UART1_IRQ, on_uart1_rx);
-        irq_set_enabled(UART0_IRQ, true);
         irq_set_enabled(UART1_IRQ, true);
 
         // Now enable the UART to send interrupts - RX only
-        uart_set_irq_enables(uart0, true, false);
         uart_set_irq_enables(uart1, true, false);
     #endif
 
@@ -418,7 +522,11 @@ int main(void) {
                                 gpio_put(UART0_EN_PIN, 1);
                                 sleep_us(50);
                             #endif
-                                uart_write_blocking(uart0, data0, num_read0);
+                                #ifdef UsingPIO
+                                    uart_tx_program_write(pio_tx, sm_tx, data0, num_read0);
+                                #else
+                                    uart_write_blocking(uart0, data0, num_read0);
+                                #endif
                                 // uart_write_blocking(uart1, data0, num_read0);
                             #ifdef USE_485
                                 sleep_us(10304 * 1000 * (num_read0 < 33 ? num_read0 + 1 : 33) / bit_rate);
@@ -432,7 +540,11 @@ int main(void) {
                                 gpio_put(UART0_EN_PIN, 1);
                                 sleep_us(50);
                             #endif
-                                uart_write_blocking(uart0, data0, num_read0);
+                                #ifdef UsingPIO
+                                    uart_tx_program_write(pio_tx, sm_tx, data0, num_read0);
+                                #else
+                                    uart_write_blocking(uart0, data0, num_read0);
+                                #endif
                                 // uart_write_blocking(uart1, data0, num_read0);
                             #ifdef USE_485
                                 sleep_us(10304 * 1000 * (num_read0 < 33 ? num_read0 + 1 : 33) / bit_rate);

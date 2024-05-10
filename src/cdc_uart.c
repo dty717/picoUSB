@@ -31,12 +31,25 @@
 
 #include "picoprobe_config.h"
 
+#ifdef UsingPIO
+    #include "hardware/pio.h"
+    #include "uart_rx.pio.h"
+    #include "uart_tx.pio.h"
+#endif
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const *line_coding)
 {
     // picoprobe_info("New baud rate %d\n", line_coding->bit_rate);
     if (itf == firstLine)
     {
-        uart_set_baudrate(uart0, line_coding->bit_rate);
+        #ifdef UsingPIO
+            float div = (float)clock_get_hz(clk_sys) / (8 * line_coding->bit_rate);
+            pio_sm_set_clkdiv(pio_rx, sm_rx, div);
+            pio_sm_set_clkdiv(pio_tx, sm_tx, div);
+            pio_sm_clkdiv_restart(pio_rx, sm_rx);
+            pio_sm_clkdiv_restart(pio_tx, sm_tx);
+        #else
+            uart_set_baudrate(uart0, line_coding->bit_rate);
+        #endif
     }
     else if (itf == secondLine)
     {

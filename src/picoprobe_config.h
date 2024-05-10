@@ -54,6 +54,25 @@ extern uint8_t data0[len0];
 extern uint16_t num_read1;
 extern uint8_t data1[len1];
 
+// #define UsingPIO
+
+#ifdef UsingPIO
+    #include "hardware/pio.h"
+    #define PIO_TX_PIN       1
+    #define PIO_RX_PIN       0
+    #define PIO_GPS_RX_PIN  20
+    #define PIO_GPS_TX_PIN  19
+    #define FIFO_SIZE       64
+    #define MAX_COUNTER     10
+    extern PIO pio_rx;
+    extern uint8_t sm_rx;
+    extern int8_t pio_rx_irq;
+    extern uint offset_rx;
+    extern PIO pio_tx;
+    extern uint8_t sm_tx;
+    extern uint offset_tx;
+#endif
+
 #define Listener
 
 #define UsingLED
