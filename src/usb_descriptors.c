@@ -30,26 +30,9 @@
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
-tusb_desc_device_t const desc_device =
-{
-    .bLength            = sizeof(tusb_desc_device_t),
-    .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0110, // // USB Specification version 1.1
-    .bDeviceClass       = 0x00, // Each interface specifies its own
-    .bDeviceSubClass    = 0x00, // Each interface specifies its own
-    .bDeviceProtocol    = 0x00,
-    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
-    .idVendor           = 0x2E8A, // Pi
-    .idProduct          = 0x0004, // Picoprobe
-    .bcdDevice          = 0x0100, // Version 01.00
-    .iManufacturer      = 0x01,
-    .iProduct           = 0x02,
-    .iSerialNumber      = 0x03,
-    .bNumConfigurations = 0x01
-};
 
-tusb_desc_device_t desc_device_test =
+tusb_desc_device_t desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
@@ -72,7 +55,7 @@ tusb_desc_device_t desc_device_test =
 // Application return pointer to descriptor
 uint8_t const * tud_descriptor_device_cb(void)
 {
-  return (uint8_t const *) &desc_device_test;
+  return (uint8_t const *) &desc_device;
 }
 
 //--------------------------------------------------------------------+
@@ -87,49 +70,121 @@ enum
   ITF_NUM_TOTAL
 };
 
-#define CDC_NOTIFICATION_EP_NUM 0x81
-#define CDC_DATA_OUT_EP_NUM 0x02
-#define CDC_DATA_IN_EP_NUM 0x83
-#define PROBE_OUT_EP_NUM 0x04
-#define PROBE_IN_EP_NUM 0x85
+#if USB_HIGHSPEED
+    #define USB_SPEED 0x00, 0x02  /*56,57  wMaxPacketSize 512*/
+#else
+    #define USB_SPEED 0x40, 0x00  /*56,57  wMaxPacketSize 64*/
+#endif
 
-#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN  + TUD_VENDOR_DESC_LEN)
+#define usb_cdc_descriptor_template(interface, iInterface, cdc_control_in_endpoint, cdc_data_out_endpoint, cdc_data_in_endpoint) \
+  /*CDC IAD Descriptor*/                                                                                                         \
+  0x08,                      /* 0 bLength*/                                                                                      \
+      0x0B,                  /* 1 bDescriptorType: IAD Descriptor*/                                                              \
+      interface,             /* 2 bFirstInterface  [SET AT RUNTIME]*/                                                            \
+      0x02,                  /* 3 bInterfaceCount: 2*/                                                                           \
+      0x02,                  /* 4 bFunctionClass: COMM*/                                                                         \
+      0x02,                  /* 5 bFunctionSubclass: ACM*/                                                                       \
+      0x00,                  /* 6 bFunctionProtocol: NONE*/                                                                      \
+      0x00, /* 7 iFunction*/ /*CDC Comm Interface Descriptor*/                                                                   \
+      0x09,                  /* 8 bLength*/                                                                                      \
+      0x04,                  /* 9 bDescriptorType (Interface)*/                                                                  \
+      interface,             /*10 bInterfaceNumber  [SET AT RUNTIME]*/                                                           \
+      0x00,                  /*11 bAlternateSetting*/                                                                            \
+      0x01,                  /*12 bNumEndpoints 1*/                                                                              \
+      0x02,                  /*13 bInterfaceClass: COMM*/                                                                        \
+      0x02,                  /*14 bInterfaceSubClass: ACM*/                                                                      \
+      0x00,                  /*15 bInterfaceProtocol: NONE*/                                                                     \
+      iInterface,            /*16 iInterface (String Index)*/                                                                    \
+                                                                                                                                 \
+      /*CDC Header Descriptor*/                                                                                                  \
+      0x05,       /*17 bLength*/                                                                                                 \
+      0x24,       /*18 bDescriptorType: CLASS SPECIFIC INTERFACE*/                                                               \
+      0x00,       /*19 bDescriptorSubtype: NONE*/                                                                                \
+      0x10, 0x01, /*20,21 bcdCDC: 1.10*/                                                                                         \
+                                                                                                                                 \
+      /*CDC Call Management Descriptor*/                                                                                         \
+      0x05,            /*22 bLength*/                                                                                            \
+      0x24,            /*23 bDescriptorType: CLASS SPECIFIC INTERFACE*/                                                          \
+      0x01,            /*24 bDescriptorSubtype: CALL MANAGEMENT*/                                                                \
+      0x01,            /*25 bmCapabilities*/                                                                                     \
+      (interface + 1), /*26 bDataInterface  [SET AT RUNTIME]*/                                                                   \
+                                                                                                                                 \
+      /*CDC Abstract Control Management Descriptor*/                                                                             \
+      0x04, /*27 bLength*/                                                                                                       \
+      0x24, /*28 bDescriptorType: CLASS SPECIFIC INTERFACE*/                                                                     \
+      0x02, /*29 bDescriptorSubtype: ABSTRACT CONTROL MANAGEMENT*/                                                               \
+      0x02, /*30 bmCapabilities*/                                                                                                \
+                                                                                                                                 \
+      /*CDC Union Descriptor*/                                                                                                   \
+      0x05,            /*31 bLength*/                                                                                            \
+      0x24,            /*32 bDescriptorType: CLASS SPECIFIC INTERFACE*/                                                          \
+      0x06,            /*33 bDescriptorSubtype: CDC*/                                                                            \
+      interface,       /*34 bMasterInterface  [SET AT RUNTIME]*/                                                                 \
+      (interface + 1), /*35 bSlaveInterface_list (1 item)*/                                                                      \
+                                                                                                                                 \
+      /*CDC Control IN Endpoint Descriptor*/                                                                                     \
+      0x07,                    /*36 bLength*/                                                                                    \
+      0x05,                    /*37 bDescriptorType (Endpoint)*/                                                                 \
+      cdc_control_in_endpoint, /*38 bEndpointAddress (IN/D2H) [SET AT RUNTIME: 0x80 | number]*/                                  \
+      0x03,                    /*39 bmAttributes (Interrupt)*/                                                                   \
+      0x40, 0x00,              /*40, 41 wMaxPacketSize 64*/                                                                      \
+      0x10,                    /*42 bInterval 16 (unit depends on device speed)*/                                                \
+                                                                                                                                 \
+      /*CDC Data Interface*/                                                                                                     \
+      0x09,             /*43 bLength*/                                                                                           \
+      0x04,             /*44 bDescriptorType (Interface)*/                                                                       \
+      (interface + 1),  /*45 bInterfaceNumber  [SET AT RUNTIME]*/                                                                \
+      0x00,             /*46 bAlternateSetting*/                                                                                 \
+      0x02,             /*47 bNumEndpoints 2*/                                                                                   \
+      0x0A,             /*48 bInterfaceClass: DATA*/                                                                             \
+      0x00,             /*49 bInterfaceSubClass: NONE*/                                                                          \
+      0x00,             /*50 bInterfaceProtocol*/                                                                                \
+      (iInterface + 1), /*51 iInterface (String Index)*/                                                                         \
+                                                                                                                                 \
+      /*CDC Data OUT Endpoint Descriptor*/                                                                                       \
+      0x07,                    /*52 bLength*/                                                                                    \
+      0x05,                    /*53 bDescriptorType (Endpoint)*/                                                                 \
+      (cdc_data_out_endpoint), /*54 bEndpointAddress (OUT/H2D) [SET AT RUNTIME]*/                                                \
+      0x02,                    /*55 bmAttributes (Bulk)*/                                                                        \
+      USB_SPEED,               /*56,57  wMaxPacketSize 64 or 512*/                                                               \
+      0x00,                    /*58 bInterval 0 (unit depends on device speed)*/                                                 \
+                                                                                                                                 \
+      /*CDC Data IN Endpoint Descriptor*/                                                                                        \
+      0x07,                 /*59 bLength*/                                                                                       \
+      0x05,                 /*60 bDescriptorType (Endpoint)*/                                                                    \
+      cdc_data_in_endpoint, /*61 bEndpointAddress (IN/D2H) [SET AT RUNTIME: 0x80 | number]*/                                     \
+      0x02,                 /*62 bmAttributes (Bulk)*/                                                                           \
+      USB_SPEED,            /*63,64  wMaxPacketSize 64 or 512*/                                                                  \
+      0x00                  /*65 bInterval 0 (unit depends on device speed)*/
+
+#define interface 0
+#define iInterface 4
+
+#define configuration_descriptor_template(totalLength, interfacesNum)                               \
+  0x09,                                              /*0 bLength*/                                  \
+      0x02,                                          /*1 bDescriptorType (Configuration)*/          \
+      totalLength & 0xFF, (totalLength >> 8) & 0xFF, /*2,3 wTotalLength  [SET AT RUNTIME: lo, hi]*/ \
+      interfacesNum,                                 /*4 bNumInterfaces  [SET AT RUNTIME]*/         \
+      0x01,                                          /*5 bConfigurationValue*/                      \
+      0x00,                                          /*6 iConfiguration (String Index)*/            \
+      0x80 | TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP,     /*7 bmAttributes*/                             \
+      0x32                                           /*8 bMaxPower 100mA*/
+
+
 
 uint8_t const desc_configuration[] =
-{
-  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
-
-  // Interface 0 + 1
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 0, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
-
-  // TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DATA, 0, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
-
-  // Interface 2
-  TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 0, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64)
-
-};
-
-uint8_t const desc_configuration_test[] =
-{
-  0x09,0x02,0x8D,0x00,0x04,0x01,0x00,0x80,0x32,0x08,0x0B,0x00,0x02,0x02,0x02,
-  0x00,0x00,0x09,0x04,0x00,0x00,0x01,0x02,0x02,0x00,0x04,0x05,0x24,0x00,0x10,
-  0x01,0x05,0x24,0x01,0x01,0x01,0x04,0x24,0x02,0x02,0x05,0x24,0x06,0x00,0x01,
-  0x07,0x05,0x81,0x03,0x40,0x00,0x10,0x09,0x04,0x01,0x00,0x02,0x0A,0x00,0x00,
-  0x05,0x07,0x05,0x02,0x02,0x40,0x00,0x00,0x07,0x05,0x82,0x02,0x40,0x00,0x00,
-  0x08,0x0B,0x02,0x02,0x02,0x02,0x00,0x00,0x09,0x04,0x02,0x00,0x01,0x02,0x02,
-  0x00,0x06,0x05,0x24,0x00,0x10,0x01,0x05,0x24,0x01,0x01,0x03,0x04,0x24,0x02,
-  0x02,0x05,0x24,0x06,0x02,0x03,0x07,0x05,0x83,0x03,0x40,0x00,0x10,0x09,0x04,
-  0x03,0x00,0x02,0x0A,0x00,0x00,0x07,0x07,0x05,0x04,0x02,0x40,0x00,0x00,0x07,
-  0x05,0x84,0x02,0x40,0x00,0x00,0x00,0x00,0x00
-};
+    {
+        configuration_descriptor_template(0x8D, 4),
+        usb_cdc_descriptor_template(interface, iInterface, 0x80 | (interface + 1), (interface + 2), 0x80 | (interface + 2)),
+        usb_cdc_descriptor_template(interface + 2, iInterface + 2, 0x80 | (interface + 3), (interface + 4), 0x80 | (interface + 4))};
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
-uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
+uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
 {
-  (void) index; // for multiple configurations
-  return desc_configuration_test;
+  (void)index; // for multiple configurations
+  return desc_configuration;
 }
 
 //--------------------------------------------------------------------+
@@ -153,25 +208,30 @@ typedef union {
 
 #define MAX_INTERFACE_STRINGS 16
 interface_string_t collected_interface_strings[MAX_INTERFACE_STRINGS];
-uint16_t testArr1[] = {0x0304, 0x0409};
-uint16_t testArr2[] = {0x031A, 0x52, 0X61, 0X73, 0X70, 0X62, 0X65, 0X72, 0X72, 0x79, 0X20, 0X50, 0X69};
-uint16_t testArr3[] = {0x030A, 0x50, 0X69, 0X63, 0X6F};
-uint16_t testArr4[] = {0x0322, 0x45, 0X36, 0X36, 0X31, 0X31, 0X43, 0X30, 0X38, 0x43, 0X42, 0X35, 0X38, 0X42, 0X35, 0X32, 0X34};
-uint16_t testArr5[] = {0x0334, 0x43, 0x69, 0x72, 0x63, 0x75, 0x69, 0x74, 0x50, 0x79, 0x74, 0x68, 0x6F, 0x6E, 0x20, 0x43, 0x44, 0x43, 0x20, 0x63, 0x6F, 0x6E, 0x74, 0x72, 0x6F, 0x6C};
-uint16_t testArr6[] = {0x032E, 0x43, 0x69, 0x72, 0x63, 0x75, 0x69, 0x74, 0x50, 0x79, 0x74, 0x68, 0x6F, 0x6E, 0x20, 0x43, 0x44, 0x43, 0x20, 0x64, 0x61, 0x74, 0x61};
-uint16_t testArr7[] = {0x0336, 0x43, 0x69, 0x72, 0x63, 0x75, 0x69, 0x74, 0x50, 0x79, 0x74, 0x68, 0x6F, 0x6E, 0x20, 0x43, 0x44, 0x43, 0x32, 0x20, 0x63, 0x6F, 0x6E, 0x74, 0x72, 0x6F, 0x6C};
-uint16_t testArr8[] = {0x0330, 0x43, 0x69, 0x72, 0x63, 0x75, 0x69, 0x74, 0x50, 0x79, 0x74, 0x68, 0x6F, 0x6E, 0x20, 0x43, 0x44, 0x43, 0x32, 0x20, 0x64, 0x61, 0x74, 0x61};
-
-uint16_t testArr9[] = {0x24, 0x03, 0x43, 0x00, 0x69, 0x00, 0x72, 0x00, 0x63, 0x00, 0x75, 0x00, 0x69, 0x00, 0x74, 0x00, 0x50, 0x00, 0x79, 0x00, 0x74, 0x00, 0x68, 0x00, 0x6F, 0x00, 0x6E, 0x00, 0x20, 0x00};
-uint16_t testArr10[] = {0x26, 0x03, 0x43, 0x00, 0x69, 0x00, 0x72, 0x00, 0x63, 0x00, 0x75, 0x00, 0x69, 0x00, 0x74, 0x00, 0x50, 0x00, 0x79, 0x00, 0x74, 0x00, 0x68, 0x00, 0x6F, 0x00, 0x6E, 0x00, 0x20, 0x00};
-uint16_t testArr11[] = {0x28, 0x03, 0x43, 0x00, 0x69, 0x00, 0x72, 0x00, 0x63, 0x00, 0x75, 0x00, 0x69, 0x00, 0x74, 0x00, 0x50, 0x00, 0x79, 0x00, 0x74, 0x00, 0x68, 0x00, 0x6F, 0x00, 0x6E, 0x00, 0x20, 0x00};
-uint16_t testArr12[] = {0x40, 0x03, 0x43, 0x00, 0x69, 0x00, 0x72, 0x00, 0x63, 0x00, 0x75, 0x00, 0x69, 0x00, 0x74, 0x00, 0x50, 0x00, 0x79, 0x00, 0x74, 0x00, 0x68, 0x00, 0x6F, 0x00, 0x6E, 0x00, 0x20, 0x00};
-uint16_t testArr13[] = {0x40, 0x03, 0x43, 0x00, 0x69, 0x00, 0x72, 0x00, 0x63, 0x00, 0x75, 0x00, 0x69, 0x00, 0x74, 0x00, 0x50, 0x00, 0x79, 0x00, 0x74, 0x00, 0x68, 0x00, 0x6F, 0x00, 0x6E, 0x00, 0x20, 0x00};
-uint16_t testArr14[] = {0x00, 0x1F, 0x04, 0x20, 0xEB, 0x00, 0x00, 0x00, 0x35, 0x00, 0x00, 0x00, 0x31, 0x00, 0x00, 0x00, 0x4D, 0x75, 0x01, 0x03, 0x7A, 0x00, 0xC4, 0x00, 0x1D, 0x00, 0x00, 0x00, 0x00, 0x23};
-uint16_t testArr15[] = {0x00, 0x1F, 0x04, 0x20, 0xEB, 0x00, 0x00, 0x00, 0x35, 0x00, 0x00, 0x00, 0x31, 0x00, 0x00, 0x00, 0x4D, 0x75, 0x01, 0x03, 0x7A, 0x00, 0xC4, 0x00, 0x1D, 0x00, 0x00, 0x00, 0x00, 0x23};
-uint16_t testArr16[] = {0x00, 0x1F, 0x04, 0x20, 0xEB, 0x00, 0x00, 0x00, 0x35, 0x00, 0x00, 0x00, 0x31, 0x00, 0x00, 0x00, 0x4D, 0x75, 0x01, 0x03, 0x7A, 0x00, 0xC4, 0x00, 0x1D, 0x00, 0x00, 0x00, 0x00, 0x23};
-
-static uint16_t _desc_str[32];
+uint16_t lang_descriptor[] = {0x0304, 0x0409};
+// Raspberry Pi
+uint16_t descArr1[] = {0x031A, 0x52, 0X61, 0X73, 0X70, 0X62, 0X65, 0X72, 0X72, 0x79, 0X20, 0X50, 0X69};
+// Pico
+uint16_t descArr2[] = {0x030A, 0x50, 0X69, 0X63, 0X6F};
+// E6611C08CB58B524
+uint16_t descArr3[] = {0x0322, 0x45, 0X36, 0X36, 0X31, 0X31, 0X43, 0X30, 0X38, 0x43, 0X42, 0X35, 0X38, 0X42, 0X35, 0X32, 0X34};
+// CircuitPython CDC control
+uint16_t descArr4[] = {0x0334, 0x43, 0x69, 0x72, 0x63, 0x75, 0x69, 0x74, 0x50, 0x79, 0x74, 0x68, 0x6F, 0x6E, 0x20, 0x43, 0x44, 0x43, 0x20, 0x63, 0x6F, 0x6E, 0x74, 0x72, 0x6F, 0x6C};
+// CircuitPython CDC data
+uint16_t descArr5[] = {0x032E, 0x43, 0x69, 0x72, 0x63, 0x75, 0x69, 0x74, 0x50, 0x79, 0x74, 0x68, 0x6F, 0x6E, 0x20, 0x43, 0x44, 0x43, 0x20, 0x64, 0x61, 0x74, 0x61};
+// CircuitPython CDC2 control
+uint16_t descArr6[] = {0x0336, 0x43, 0x69, 0x72, 0x63, 0x75, 0x69, 0x74, 0x50, 0x79, 0x74, 0x68, 0x6F, 0x6E, 0x20, 0x43, 0x44, 0x43, 0x32, 0x20, 0x63, 0x6F, 0x6E, 0x74, 0x72, 0x6F, 0x6C};
+// CircuitPython CDC2 data
+uint16_t descArr7[] = {0x0330, 0x43, 0x69, 0x72, 0x63, 0x75, 0x69, 0x74, 0x50, 0x79, 0x74, 0x68, 0x6F, 0x6E, 0x20, 0x43, 0x44, 0x43, 0x32, 0x20, 0x64, 0x61, 0x74, 0x61};
+//
+uint16_t descArr8[] = {0x0324, 0x43, 0x69, 0x72, 0x63, 0x75, 0x69, 0x74, 0x50, 0x79, 0x74, 0x68, 0x6F, 0x6E, 0x20};
+uint16_t descArr9[] = {0x26, 0x03, 0x43, 0x69, 0x72, 0x63, 0x75, 0x69, 0x74, 0x50, 0x79, 0x74, 0x68, 0x6F, 0x6E, 0x20};
+uint16_t descArr10[] = {0x28, 0x03, 0x43, 0x69, 0x72, 0x63, 0x75, 0x69, 0x74, 0x50, 0x79, 0x74, 0x68, 0x6F, 0x6E, 0x20};
+uint16_t descArr11[] = {0x40, 0x03, 0x43, 0x69, 0x72, 0x63, 0x75, 0x69, 0x74, 0x50, 0x79, 0x74, 0x68, 0x6F, 0x6E, 0x20};
+uint16_t descArr12[] = {0x40, 0x03, 0x43, 0x69, 0x72, 0x63, 0x75, 0x69, 0x74, 0x50, 0x79, 0x74, 0x68, 0x6F, 0x6E, 0x20};
+uint16_t descArr13[] = {0x1F, 0x04, 0x20, 0xEB, 0x35, 0x31, 0x4D, 0x75, 0x01, 0x03, 0x7A, 0xC4, 0x1D, 0x23};
+uint16_t descArr14[] = {0x1F, 0x04, 0x20, 0xEB, 0x35, 0x31, 0x4D, 0x75, 0x01, 0x03, 0x7A, 0xC4, 0x1D, 0x23};
+uint16_t descArr15[] = {0x1F, 0x04, 0x20, 0xEB, 0x35, 0x31, 0x4D, 0x75, 0x01, 0x03, 0x7A, 0xC4, 0x1D, 0x23};
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
@@ -181,67 +241,39 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
   switch (index)
   {
     case 0:
-      return testArr1;
+      return lang_descriptor;
     case 1:
-      return testArr2;
+      return descArr1;
     case 2:
-      return testArr3;
+      return descArr2;
     case 3:
-      return testArr4;
+      return descArr3;
     case 4:
-      return testArr5;
+      return descArr4;
     case 5:
-      return testArr6;
+      return descArr5;
     case 6:
-      return testArr7;
+      return descArr6;
     case 7:
-      return testArr8;
-    case 8:
-      return testArr9;
-    case 9:
-      return testArr10;
-    case 10:
-      return testArr11;
-    case 11:
-      return testArr12;
-    case 12:
-      return testArr13;
-    case 13:
-      return testArr14;
-    case 14:
-      return testArr15;
-    case 15:
-      return testArr16;
+      return descArr7;
+    // case 8:
+    //   return descArr8;
+    // case 9:
+    //   return descArr9;
+    // case 10:
+    //   return descArr10;
+    // case 11:
+    //   return descArr11;
+    // case 12:
+    //   return descArr12;
+    // case 13:
+    //   return descArr13;
+    // case 14:
+    //   return descArr14;
+    // case 15:
+    //   return descArr15;
     default:
-      break;
-  }
-    // return collected_interface_strings[index].descriptor;
-  uint8_t chr_count;
-
-  if ( index == 0)
-  {
-    memcpy(&_desc_str[1], string_desc_arr[0], 2);
-    chr_count = 1;
-  }else
-  {
-    // Convert ASCII string into UTF-16
-
-    if ( !(index < sizeof(string_desc_arr)/sizeof(string_desc_arr[0])) ) return NULL;
-
-    const char* str = string_desc_arr[index];
-
-    // Cap at max char
-    chr_count = strlen(str);
-    if ( chr_count > 31 ) chr_count = 31;
-
-    for(uint8_t i=0; i<chr_count; i++)
-    {
-      _desc_str[1+i] = str[i];
-    }
+      return NULL;
   }
 
-  // first byte is length (including header), second byte is string type
-  _desc_str[0] = (TUSB_DESC_STRING << 8 ) | (2*chr_count + 2);
-
-  return _desc_str;
 }
