@@ -45,7 +45,7 @@ struct usb_device_configuration {
 // EP0 IN and OUT
 static const struct usb_endpoint_descriptor ep0_out = {
         .bLength          = sizeof(struct usb_endpoint_descriptor),
-        .bDescriptorType  = USB_DT_ENDPOINT,
+        .bDescriptorType  = Descriptor_Type_Endpoint,
         .bEndpointAddress = EP0_OUT_ADDR, // EP number 0, OUT from host (rx to device)
         .bmAttributes     = USB_TRANSFER_TYPE_CONTROL,
         .wMaxPacketSize   = 64,
@@ -54,7 +54,7 @@ static const struct usb_endpoint_descriptor ep0_out = {
 
 static const struct usb_endpoint_descriptor ep0_in = {
         .bLength          = sizeof(struct usb_endpoint_descriptor),
-        .bDescriptorType  = USB_DT_ENDPOINT,
+        .bDescriptorType  = Descriptor_Type_Endpoint,
         .bEndpointAddress = EP0_IN_ADDR, // EP number 0, OUT from host (rx to device)
         .bmAttributes     = USB_TRANSFER_TYPE_CONTROL,
         .wMaxPacketSize   = 64,
@@ -64,14 +64,14 @@ static const struct usb_endpoint_descriptor ep0_in = {
 // Descriptors
 static const struct usb_device_descriptor device_descriptor = {
         .bLength         = sizeof(struct usb_device_descriptor),
-        .bDescriptorType = USB_DT_DEVICE,
+        .bDescriptorType = Descriptor_Type_Device,
         .bcdUSB          = 0x0110, // USB 1.1 device
         .bDeviceClass    = 0,      // Specified in interface descriptor
         .bDeviceSubClass = 0,      // No subclass
         .bDeviceProtocol = 0,      // No protocol
         .bMaxPacketSize0 = 64,     // Max packet size for ep0
-        .idVendor        = 0xB7D0, // Your vendor id
-        .idProduct       = 0x1E01, // Your product ID
+        .idVendor        = 0x2E8A, // Your vendor id
+        .idProduct       = 0x0003, // Your product ID
         .bcdDevice       = 0,      // No device revision number
         .iManufacturer   = 1,      // Manufacturer string index
         .iProduct        = 2,      // Product string index
@@ -81,7 +81,7 @@ static const struct usb_device_descriptor device_descriptor = {
 
 static const struct usb_interface_descriptor interface_descriptor = {
         .bLength            = sizeof(struct usb_interface_descriptor),
-        .bDescriptorType    = USB_DT_INTERFACE,
+        .bDescriptorType    = Descriptor_Type_Interface,
         .bInterfaceNumber   = 0,
         .bAlternateSetting  = 0,
         .bNumEndpoints      = 2,    // Interface has 2 endpoints
@@ -93,7 +93,7 @@ static const struct usb_interface_descriptor interface_descriptor = {
 
 static const struct usb_endpoint_descriptor ep1_out = {
         .bLength          = sizeof(struct usb_endpoint_descriptor),
-        .bDescriptorType  = USB_DT_ENDPOINT,
+        .bDescriptorType  = Descriptor_Type_Endpoint,
         .bEndpointAddress = EP1_OUT_ADDR, // EP number 1, OUT from host (rx to device)
         .bmAttributes     = USB_TRANSFER_TYPE_BULK,
         .wMaxPacketSize   = 64,
@@ -102,7 +102,7 @@ static const struct usb_endpoint_descriptor ep1_out = {
 
 static const struct usb_endpoint_descriptor ep2_in = {
         .bLength          = sizeof(struct usb_endpoint_descriptor),
-        .bDescriptorType  = USB_DT_ENDPOINT,
+        .bDescriptorType  = Descriptor_Type_Endpoint,
         .bEndpointAddress = EP2_IN_ADDR, // EP number 2, IN from host (tx from device)
         .bmAttributes     = USB_TRANSFER_TYPE_BULK,
         .wMaxPacketSize   = 64,
@@ -111,7 +111,7 @@ static const struct usb_endpoint_descriptor ep2_in = {
 
 static const struct usb_configuration_descriptor config_descriptor = {
         .bLength         = sizeof(struct usb_configuration_descriptor),
-        .bDescriptorType = USB_DT_CONFIG,
+        .bDescriptorType = Descriptor_Type_Config,
         .wTotalLength    = (sizeof(config_descriptor) +
                             sizeof(interface_descriptor) +
                             sizeof(ep1_out) +

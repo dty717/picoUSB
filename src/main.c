@@ -124,7 +124,7 @@ struct usb_endpoint_configuration *usb_get_endpoint_configuration(uint8_t addr) 
 uint8_t usb_prepare_string_descriptor(const unsigned char *str) {
     // 2 for bLength + bDescriptorType + strlen * 2 because string is unicode. i.e. other byte will be 0
     uint8_t bLength = 2 + (strlen((const char *)str) * 2);
-    static const uint8_t bDescriptorType = 0x03;
+    static const uint8_t bDescriptorType = Descriptor_Type_String;
 
     volatile uint8_t *buf = &ep0_buf[0];
     *buf++ = bLength;
@@ -157,7 +157,7 @@ static inline uint32_t usb_buffer_offset(volatile uint8_t *buf) {
  * @param ep
  */
 void usb_setup_endpoint(const struct usb_endpoint_configuration *ep) {
-    printf("Set up endpoint 0x%x with buffer address 0x%p\r\n", ep->descriptor->bEndpointAddress, ep->data_buffer);
+    // printf("Set up endpoint 0x%x with buffer address 0x%p\r\n", ep->descriptor->bEndpointAddress, ep->data_buffer);
 
     // EP0 doesn't have one so return if that is the case
     if (!ep->endpoint_control) {
@@ -171,6 +171,7 @@ void usb_setup_endpoint(const struct usb_endpoint_configuration *ep) {
                    | (ep->descriptor->bmAttributes << EP_CTRL_BUFFER_TYPE_LSB)
                    | dpram_offset;
     *ep->endpoint_control = reg;
+    // printf("ep->data_buffer:%ld, dpram_offset:%ld, reg:%ld,ep->descriptor->bmAttributes:%d\r\n", (uint32_t)ep->data_buffer, dpram_offset, reg, ep->descriptor->bmAttributes);
 }
 
 /**
@@ -194,6 +195,13 @@ void usb_device_init() {
     // Reset usb controller
     reset_block(RESETS_RESET_USBCTRL_BITS);
     unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
+    
+    // At least on FPGA we don't know the previous state
+    // so clean up registers. Should be fine not clearing DPSRAM
+    io_rw_32 *reg = &usb_hw->dev_addr_ctrl;
+    // Don't touch phy trim
+    while (reg != &usb_hw->phy_trim)
+        *reg++ = 0;
 
     // Clear any previous state in dpram just in case
     memset(usb_dpram, 0, sizeof(*usb_dpram)); // <1>
@@ -225,6 +233,8 @@ void usb_device_init() {
 
     // Present full speed device by enabling pull up on DP
     usb_hw_set->sie_ctrl = USB_SIE_CTRL_PULLUP_EN_BITS;
+
+    // printf("usb_hw:%lx, usb_hw_set:%lx, usb_hw->sie_ctrl:%lx, usb_hw_set->sie_ctrl:%lx\r\n", usb_hw, usb_hw_set, &usb_hw->sie_ctrl, &usb_hw_set->sie_ctrl);
 }
 
 /**
@@ -246,23 +256,35 @@ static inline bool ep_is_tx(struct usb_endpoint_configuration *ep) {
  * @param buf, the data buffer to send. Only applicable if the endpoint is TX
  * @param len, the length of the data in buf (this example limits max len to one packet - 64 bytes)
  */
-void usb_start_transfer(struct usb_endpoint_configuration *ep, uint8_t *buf, uint16_t len) {
+void usb_start_transfer(struct usb_endpoint_configuration *ep, uint8_t *buf, uint16_t len)
+{
     // We are asserting that the length is <= 64 bytes for simplicity of the example.
     // For multi packet transfers see the tinyusb port.
     assert(len <= 64);
-    if(len){
-        printf("<-addr 0x%x: ", ep->descriptor->bEndpointAddress);
+    if (len)
+    {
+        if (ep_is_tx(ep))
+        {
+            printf("<-addr 0x%x: ", ep->descriptor->bEndpointAddress);
+        }
+        else
+        {
+            printf("<-X addr 0x%x: ", ep->descriptor->bEndpointAddress);
+        }
         print_buf(buf, len);
         printf("\r\n");
-    }else{
+    }
+    else
+    {
         printf("addr 0x%x\r\n", ep->descriptor->bEndpointAddress);
     }
     // Prepare buffer control register value
     uint32_t val = len | USB_BUF_CTRL_AVAIL;
 
-    if (ep_is_tx(ep)) {
+    if (ep_is_tx(ep))
+    {
         // Need to copy the data from the user buffer to the usb memory
-        memcpy((void *) ep->data_buffer, (void *) buf, len);
+        memcpy((void *)ep->data_buffer, (void *)buf, len);
         // Mark as full
         val |= USB_BUF_CTRL_FULL;
     }
@@ -421,17 +443,17 @@ void usb_handle_setup_packet(void) {
             uint16_t descriptor_type = pkt->wValue >> 8;
 
             switch (descriptor_type) {
-                case USB_DT_DEVICE:
+                case Descriptor_Type_Device:
                     usb_handle_device_descriptor(pkt);
                     printf("GET DEVICE DESCRIPTOR\r\n");
                     break;
 
-                case USB_DT_CONFIG:
+                case Descriptor_Type_Config:
                     usb_handle_config_descriptor(pkt);
                     printf("GET CONFIG DESCRIPTOR\r\n");
                     break;
 
-                case USB_DT_STRING:
+                case Descriptor_Type_String:
                     usb_handle_string_descriptor(pkt);
                     printf("GET STRING DESCRIPTOR\r\n");
                     break;
@@ -511,7 +533,7 @@ void isr_usbctrl(void) {
     // USB interrupt handler
     uint32_t status = usb_hw->ints;
     uint32_t handled = 0;
-    printf(":");
+    printf(":usb_hw:%lx\r\n",usb_hw->sie_status);
 
     // Setup packet received
     if (status & USB_INTS_SETUP_REQ_BITS) {
@@ -547,6 +569,9 @@ void isr_usbctrl(void) {
  * @param len the length that was sent
  */
 void ep0_in_handler(uint8_t *buf, uint16_t len) {
+    printf("ep0 %d bytes to host\r\n", len);
+    print_buf(buf, len);
+    printf("\r\n");
     if (should_set_address) {
         // Set actual device address in hardware
         usb_hw->dev_addr_ctrl = dev_addr;
@@ -559,19 +584,25 @@ void ep0_in_handler(uint8_t *buf, uint16_t len) {
 }
 
 void ep0_out_handler(uint8_t *buf, uint16_t len) {
-    ;
+    printf("ep0 %d bytes from host\r\n", len);
+    print_buf(buf, len);
+    printf("\r\n");
 }
 
 // Device specific functions
 void ep1_out_handler(uint8_t *buf, uint16_t len) {
     printf("RX %d bytes from host\r\n", len);
+    print_buf(buf, len);
+    printf("\r\n");
     // Send data back to host
     struct usb_endpoint_configuration *ep = usb_get_endpoint_configuration(EP2_IN_ADDR);
-    usb_start_transfer(ep, buf, len);
+    usb_start_transfer(ep, buf, len - 2);
 }
 
 void ep2_in_handler(uint8_t *buf, uint16_t len) {
     printf("Sent %d bytes to host\r\n", len);
+    print_buf(buf, len);
+    printf("\r\n");
     // Get ready to rx again from host
     usb_start_transfer(usb_get_endpoint_configuration(EP1_OUT_ADDR), NULL, 64);
 }
@@ -585,6 +616,8 @@ int main(void) {
 
     // Wait until configured
     while (!configured) {
+        // printf(":usb_hw:%lx\r\n", usb_hw->sie_status);
+        // sleep_ms(10000);
         tight_loop_contents();
     }
 

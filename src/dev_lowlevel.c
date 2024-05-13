@@ -403,17 +403,17 @@ void usb_handle_setup_packet(void) {
             uint16_t descriptor_type = pkt->wValue >> 8;
 
             switch (descriptor_type) {
-                case USB_DT_DEVICE:
+                case Descriptor_Type_Device:
                     usb_handle_device_descriptor(pkt);
                     printf("GET DEVICE DESCRIPTOR\r\n");
                     break;
 
-                case USB_DT_CONFIG:
+                case Descriptor_Type_Config:
                     usb_handle_config_descriptor(pkt);
                     printf("GET CONFIG DESCRIPTOR\r\n");
                     break;
 
-                case USB_DT_STRING:
+                case Descriptor_Type_String:
                     usb_handle_string_descriptor(pkt);
                     printf("GET STRING DESCRIPTOR\r\n");
                     break;

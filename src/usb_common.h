@@ -31,11 +31,14 @@
 #define USB_TRANSFER_TYPE_BITS 0x3
 
 // Descriptor types
-#define USB_DT_DEVICE 0x01
-#define USB_DT_CONFIG 0x02
-#define USB_DT_STRING 0x03
-#define USB_DT_INTERFACE 0x04
-#define USB_DT_ENDPOINT 0x05
+#define Descriptor_Type_Device 0x01
+#define Descriptor_Type_Config 0x02
+#define Descriptor_Type_String 0x03
+#define Descriptor_Type_Interface 0x04
+#define Descriptor_Type_Endpoint 0x05
+#define Descriptor_Type_Device_Qualifier 0x06
+#define Descriptor_Type_Other_speed_Configuration 0x07
+#define Descriptor_Type_Interface_Power1 0x08
 
 #define USB_REQUEST_GET_STATUS 0x0
 #define USB_REQUEST_CLEAR_FEATURE 0x01
@@ -56,7 +59,7 @@
 #define USB_FEAT_DEVICE_REMOTE_WAKEUP   0x01
 #define USB_FEAT_TEST_MODE                0x02
 
-#define USB_DESCRIPTOR_TYPE_ENDPOINT 0x05
+#define USB_Descriptor_Type_Endpoint 0x05
 
 struct usb_setup_packet {
     uint8_t bmRequestType;
