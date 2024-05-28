@@ -63,9 +63,9 @@
 #define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
-#ifndef CFG_TUSB_DEBUG
-#define CFG_TUSB_DEBUG        5
-#endif
+// #ifndef CFG_TUSB_DEBUG
+// #define CFG_TUSB_DEBUG        5
+// #endif
 
 // Enable Host stack
 #define CFG_TUH_ENABLED       1
@@ -88,6 +88,10 @@
 #define CFG_TUSB_MEM_ALIGN          __attribute__ ((aligned(4)))
 #endif
 
+#ifndef CFG_TUH_CDC_CUSTOM
+#define CFG_TUH_CDC_CUSTOM
+#endif
+
 //--------------------------------------------------------------------
 // CONFIGURATION
 //--------------------------------------------------------------------
@@ -95,10 +99,10 @@
 // Size of buffer to hold descriptors and other data used for enumeration
 #define CFG_TUH_ENUMERATION_BUFSIZE 280
 
-#define CFG_TUH_HUB                 1 // number of supported hubs
-#define CFG_TUH_CDC                 1
-#define CFG_TUH_HID                 4 // typical keyboard + mouse device can have 3-4 HID interfaces
-#define CFG_TUH_MSC                 1
+#define CFG_TUH_HUB                 0 // number of supported hubs
+#define CFG_TUH_CDC                 4
+#define CFG_TUH_HID                 0 // typical keyboard + mouse device can have 3-4 HID interfaces
+#define CFG_TUH_MSC                 0
 #define CFG_TUH_VENDOR              0
 
 // max device support (excluding hub device)

@@ -24,9 +24,7 @@ set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
 add_executable(hostUSB
-        src/hid_app.c
         src/main.c
-        src/msc_app.c
         src/cdc_app.c
         # src/rp2040_usb.c
         # src/hcd_rp2040.c

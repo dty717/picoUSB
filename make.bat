@@ -1,5 +1,3 @@
-
-@@ -0,0 +1,6 @@
 rd  /s /q  build
 mkdir build
 cd build
