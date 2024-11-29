@@ -28,6 +28,7 @@
 #include <string.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
+#include "hardware/watchdog.h"
 
 #include "bsp/board.h"
 #include "tusb.h"
@@ -194,6 +195,7 @@ int main(void)
   // init host stack on configured roothub port
   tuh_init(BOARD_TUH_RHPORT);
   // multicore_launch_core1(core1_entry);
+  watchdog_enable(3000, 1);
 
   while (1)
   {
@@ -239,5 +241,6 @@ void led_blinking_task(void)
   start_ms += interval_ms;
 
   board_led_write(led_state);
+  watchdog_update();
   led_state = 1 - led_state; // toggle
 }
